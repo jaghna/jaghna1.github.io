@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>박 터트리기 게임</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        #blueBox, #whiteBox {
+            width: 100px;
+            height: 100px;
+            display: none; /* 처음에 보이지 않음 */
+            margin: 20px;
+            cursor: pointer;
+            text-align: center;
+            line-height: 100px; /* 중앙 정렬 */
+            font-size: 24px;
+            color: white;
+            border-radius: 10px;
+        }
+        #blueBox {
+            background-color: blue;
+        }
+        #whiteBox {
+            background-color: white;
+            color: black; /* 텍스트 색상을 검정으로 변경 */
+        }
+        #message {
+            font-size: 32px;
+            display: none; /* 처음에 보이지 않음 */
+            margin-top: 20px;
+        }
+        #clickCounts {
+            font-size: 24px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="blueBox">파란 박</div>
+    <div id="whiteBox">흰 박</div>
+    <input type="password" id="password" placeholder="비밀번호 입력">
+    <button id="initialize">초기화</button>
+    <div id="message"></div>
+    <div id="clickCounts"></div> <!-- 클릭 수 표시 영역 추가 -->
+
+    <script>
+        const socket = new WebSocket("ws://175.198.164.231:8080"); // 서버의 공인 IP로 변경
+
+        const blueBox = document.getElementById('blueBox');
+        const whiteBox = document.getElementById('whiteBox');
+        const message = document.getElementById('message');
+        const passwordInput = document.getElementById('password');
+        const initializeButton = document.getElementById('initialize');
+        const clickCountsDisplay = document.getElementById('clickCounts'); // 클릭 수 표시 요소
+
+        let clickCount = {
+            blue: 0,
+            white: 0
+        };
+
+        // 비밀번호 입력 및 초기화 기능
+        initializeButton.addEventListener('click', () => {
+            if (passwordInput.value === 'hcyc') {
+                // 초기화 요청
+                socket.send(JSON.stringify({ type: 'initialize' }));
+                clickCount = { blue: 0, white: 0 };
+                message.style.display = 'none'; // 메세지 숨김
+                clickCountsDisplay.textContent = ''; // 클릭 수 초기화
+                passwordInput.value = ''; // 비밀번호 입력 필드 초기화
+                blueBox.style.display = 'block'; // 파란 박 보이기
+                whiteBox.style.display = 'block'; // 흰 박 보이기
+            } else {
+                alert('비밀번호가 올바르지 않습니다.');
+            }
+        });
+
+        // WebSocket 메시지 수신
+        socket.addEventListener('message', function (event) {
+            const data = JSON.parse(event.data);
+            if (data.type === 'click') {
+                // 클릭 수 업데이트
+                clickCount.blue = data.counts.blue;
+                clickCount.white = data.counts.white;
+
+                // 클릭 수를 모든 클라이언트에서 업데이트
+                clickCountsDisplay.textContent = `청군: ${clickCount.blue} 클릭, 백군: ${clickCount.white} 클릭`;
+
+                // 승리 조건 확인
+                if (clickCount.blue >= 100) {
+                    message.textContent = '청군 승!';
+                    message.style.display = 'block';
+                    blueBox.style.display = 'none'; // 박 숨김
+                    whiteBox.style.display = 'none'; // 박 숨김
+                } else if (clickCount.white >= 100) {
+                    message.textContent = '백군 승!';
+                    message.style.display = 'block';
+                    blueBox.style.display = 'none'; // 박 숨김
+                    whiteBox.style.display = 'none'; // 박 숨김
+                }
+            } else if (data.type === 'initCounts') {
+                // 초기 클릭 수 수신
+                clickCount = data.counts;
+                clickCountsDisplay.textContent = `청군: ${clickCount.blue} 클릭, 백군: ${clickCount.white} 클릭`;
+                // 박을 보여줌
+                blueBox.style.display = 'block'; 
+                whiteBox.style.display = 'block'; 
+            } else if (data.type === 'end') {
+                // 게임 종료 처리
+                message.textContent = data.winner === 'blue' ? '청군 승!' : '백군 승!';
+                message.style.display = 'block';
+                blueBox.style.display = 'none'; // 박 숨김
+                whiteBox.style.display = 'none'; // 박 숨김
+            }
+        });
+
+        // 박 클릭 이벤트
+        blueBox.addEventListener('click', () => {
+            socket.send(JSON.stringify({ type: 'click', team: 'blue' }));
+        });
+
+        whiteBox.addEventListener('click', () => {
+            socket.send(JSON.stringify({ type: 'click', team: 'white' }));
+        });
+    </script>
+</body>
+</html>
